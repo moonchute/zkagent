@@ -1,0 +1,13 @@
+{
+  "name": "@zk-agent/helper",
+  "version": "0.0.1",
+  "devDependencies": {
+    "@types/node": "^20.11.16",
+    "@types/node-forge": "^1.3.11",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@zk-email/helpers": "3.0.2",
+    "node-forge": "^1.3.1"
+  }
+}

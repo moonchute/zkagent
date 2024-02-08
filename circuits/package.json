@@ -1,0 +1,20 @@
+{
+  "name": "@zk-agent/circuit",
+  "version": "0.0.1",
+  "scripts": {
+    "compile:issue_closed": "circom circuits/issue_closed.circom --r1cs --wasm --sym --c --output out -l node_modules",
+    "compile": "mkdir -p out && npm run compile:issue_closed",
+    "gen-input:issue": "npx tsx ../helper/src/generateInput.ts --email=./emls/issue_closed.eml --output=input",
+    "gen-input": "mkdir -p input && npm run gen-input:issue",
+    "clear": "rm -rf out input"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.16",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@zk-email/circuits": "^3.2.3",
+    "@zk-email/helpers": "^3.1.3",
+    "circomlib": "^2.0.5"
+  }
+}
