@@ -35,7 +35,10 @@ interface ICircuitInputs {
   // in_padded_n_bytes?: string[];
   // expected_sha?: string[];
   // venmo_payer_id_idx?: string;
-  // email_from_idx?: string | number;
+  email_from_idx?: string | number;
+  email_repo_idx?: string | number;
+  issue_number_idx?: string | number;
+  issue_pr_idx?: string | number;
   // email_to_idx?: string | number;
   // email_timestamp_idx?: string;
   // venmo_payee_id_idx?: string;
@@ -124,7 +127,7 @@ export async function getCircuitInputs(
 ): Promise<ICircuitInputs> {
   console.log("Starting processing of inputs");
   let MAX_HEADER_PADDED_BYTES_FOR_EMAIL_TYPE = 1536;
-  let MAX_BODY_PADDED_BYTES_FOR_EMAIL_TYPE = 6272;
+  let MAX_BODY_PADDED_BYTES_FOR_EMAIL_TYPE = 3584;
   let MAX_INTERMEDIATE_PADDING_LENGTH = MAX_BODY_PADDED_BYTES_FOR_EMAIL_TYPE;
   let STRING_PRESELECTOR_FOR_EMAIL_TYPE = "----==_mimepart_";
   let STRING_PRESELECTOR_FOR_EMAIL_TYPE_INTERMEDIATE = "----==_mimepart_";
@@ -153,7 +156,7 @@ export async function getCircuitInputs(
   const bodyRemainingLen = bodyPaddedLen - precomputeText.length;
   console.log(bodyRemainingLen, " bytes remaining in body");
   
-  assert(bodyRemainingLen < MAX_BODY_PADDED_BYTES_FOR_EMAIL_TYPE, "Invalid slice");
+  assert(bodyRemainingLen < MAX_BODY_PADDED_BYTES_FOR_EMAIL_TYPE, "Invalid body length");
   assert(bodyRemaining.length % 64 === 0, "Not going to be padded correctly with int64s");
 
   bodyRemaining = padWithZero(bodyRemaining, MAX_BODY_PADDED_BYTES_FOR_EMAIL_TYPE);
@@ -172,21 +175,23 @@ export async function getCircuitInputs(
   const in_body_len_padded_bytes = bodyRemainingLen.toString();
   const in_body_padded = Uint8ArrayToCharArray(bodyRemaining);
   const base_message = toCircomBigIntBytes(postShaBigintUnpadded);
+  console.log("in_body_padded", body.length);
 
   let raw_header = Buffer.from(message).toString();
+  console.log("raw_header", raw_header);
   const email_from_idx = raw_header.length - trimStrByStr(trimStrByStr(raw_header, "from:"), "<").length;
   let email_subject = trimStrByStr(raw_header, "\r\nsubject:");
 
   const issueSelector = "Closed #";
-  const issueIdx = (Buffer.from(bodyRemaining).indexOf(issueSelector) + issueSelector.length).toString();
+  const issue_number_idx = (Buffer.from(bodyRemaining).indexOf(issueSelector) + issueSelector.length).toString();
   const issuePRSelector = "as completed via #";
-  const issuePRIdx = (Buffer.from(bodyRemaining).indexOf(issuePRSelector) + issuePRSelector.length).toString();
-  const issueRepoIdx = raw_header.length - trimStrByStr(raw_header, "to:").length;
+  const issue_pr_idx = (Buffer.from(bodyRemaining).indexOf(issuePRSelector) + issuePRSelector.length).toString();
+  const email_repo_idx = raw_header.length - trimStrByStr(raw_header, "\nto:").length;
 
   console.log("email from:", raw_header.slice(email_from_idx, email_from_idx + 20));
-  console.log("issue:", new TextDecoder().decode(bodyRemaining.slice(Number(issueIdx), Number(issueIdx) + 2)));
-  console.log("issue pr:", new TextDecoder().decode(bodyRemaining.slice(Number(issuePRIdx), Number(issuePRIdx) + 2)));
-  console.log("email from:", raw_header.slice(issueRepoIdx, issueRepoIdx + 24));
+  console.log("issue:", new TextDecoder().decode(bodyRemaining.slice(Number(issue_number_idx), Number(issue_number_idx) + 2)));
+  console.log("issue pr:", new TextDecoder().decode(bodyRemaining.slice(Number(issue_pr_idx), Number(issue_pr_idx) + 2)));
+  console.log("issueRepoIdx:", raw_header.slice(email_repo_idx, email_repo_idx + 24));
 
   circuitInputs = {
     in_padded,
@@ -196,7 +201,11 @@ export async function getCircuitInputs(
     body_hash_idx,
     precomputed_sha,
     in_body_padded,
-    in_body_len_padded_bytes
+    in_body_len_padded_bytes,
+    email_from_idx: email_from_idx.toString(),
+    email_repo_idx: email_repo_idx.toString(),
+    issue_number_idx: issue_number_idx.toString(),
+    issue_pr_idx: issue_pr_idx.toString(),
   }
   return circuitInputs;
 }
@@ -229,7 +238,10 @@ export async function generateInputs(raw_email: Buffer): Promise<ICircuitInputs>
 async function generateFromCmd(writeToFile: boolean = true) {
   const args = await getArgs();
   const email = fs.readFileSync(args.emailFile.trim());
-  await generateInputs(email);
+  const inputs = await generateInputs(email);
+  if (writeToFile) {
+    fs.writeFileSync(`${args.outputDir}/input.json`, JSON.stringify(inputs), { flag: "w"});
+  }
 }
 
 if (typeof require !== "undefined" && require.main === module) {

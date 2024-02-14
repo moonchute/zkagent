@@ -293,17 +293,25 @@ template IssueRegex(msg_bytes) {
 		is_consecutive[msg_bytes-1-i][0] <== states[num_bytes-i][22] * (1 - is_consecutive[msg_bytes-i][1]) + is_consecutive[msg_bytes-i][1];
 		is_consecutive[msg_bytes-1-i][1] <== state_changed[msg_bytes-i].out * is_consecutive[msg_bytes-1-i][0];
 	}
-
-	signal is_substr0[msg_bytes][5];
+	// substrings calculated: [{(1, 1), (29, 1)}, {(19, 20), (20, 20)}]
+	signal is_substr0[msg_bytes][3];
 	signal is_reveal0[msg_bytes];
 	signal output reveal0[msg_bytes];
 	for (var i = 0; i < msg_bytes; i++) {
 		is_substr0[i][0] <== 0;
-		is_substr0[i][1] <== is_substr0[i][0] + states[i+1][29] * states[i+2][1];
-		is_substr0[i][2] <== is_substr0[i][1] + states[i+1][1] * states[i+2][1];
-		is_substr0[i][3] <== is_substr0[i][2] + states[i+1][19] * states[i+2][20];
-		is_substr0[i][4] <== is_substr0[i][3] + states[i+1][20] * states[i+2][20];
-		is_reveal0[i] <== is_substr0[i][4] * is_consecutive[i][1];
+		is_substr0[i][1] <== is_substr0[i][0] + states[i+1][1] * states[i+2][1];
+		is_substr0[i][2] <== is_substr0[i][1] + states[i+1][29] * states[i+2][1];
+		is_reveal0[i] <== is_substr0[i][2] * is_consecutive[i][1];
 		reveal0[i] <== in[i+1] * is_reveal0[i];
+	}
+	signal is_substr1[msg_bytes][3];
+	signal is_reveal1[msg_bytes];
+	signal output reveal1[msg_bytes];
+	for (var i = 0; i < msg_bytes; i++) {
+		is_substr1[i][0] <== 0;
+		is_substr1[i][1] <== is_substr1[i][0] + states[i+1][19] * states[i+2][20];
+		is_substr1[i][2] <== is_substr1[i][1] + states[i+1][20] * states[i+2][20];
+		is_reveal1[i] <== is_substr1[i][2] * is_consecutive[i][1];
+		reveal1[i] <== in[i+1] * is_reveal1[i];
 	}
 }

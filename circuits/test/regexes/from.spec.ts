@@ -27,9 +27,11 @@ describe("A regex", function () {
 
   it("Should generate witness", async () => {
     const input = {
-      "msg": textToAsciiArray("\nfrom:jhw <notifications@github.com>")
+      "msg": textToAsciiArray("from:jhw <notifications@github.com>\r\n")
     };
-    const expectedValue = Array(textToAsciiArray("\nfrom:jhw <notifications@github.com>").length).fill("0");
+    const expectedValue = Array(textToAsciiArray("from:jhw <").length).fill("0")
+      .concat(textToAsciiArray("notifications@github.com"))
+      .concat(Array(textToAsciiArray(">\r\n").length).fill("0"))
 
     const witness = await cir.calculateWitness(
       input,
