@@ -4,9 +4,11 @@
   "type": "module",
   "scripts": {
     "compile:issue_closed": "circom circuits/issue_closed.circom --r1cs --wasm --sym --c --output build -l node_modules",
-    "compile": "mkdir -p out && npm run compile:issue_closed",
-    "gen-input:issue": "npx tsx ../helper/src/generateInput.ts --email=./emls/issue_closed.eml --output=input",
-    "gen-input": "mkdir -p input && npm run gen-input:issue",
+    "compile:pr_merged": "circom circuits/pr_merged.circom --r1cs --wasm --sym --c --output build -l node_modules",
+    "compile": "mkdir -p out && npm run compile:issue_closed && npm run compile:pr_merged",
+    "gen-input:issue": "npx tsx ../helper/src/generateInput.ts --email=./emls/issue_closed.eml --output=input --type=issue",
+    "gen-input:pr": "npx tsx ../helper/src/generateInput.ts --email=./emls/pr_merged.eml --output=input --type=pr",
+    "gen-input": "mkdir -p input && npm run gen-input:issue && npm run gen-input:pr",
     "clear": "rm -rf out input",
     "test": "jest"
   },

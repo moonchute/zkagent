@@ -7,13 +7,13 @@ const Fr = new F1Field(p);
 
 const wasm_tester = require("circom_tester").wasm;
 
-describe("Issue closed", function () {
+describe("PR merged", function () {
   jest.setTimeout(10 * 60 * 1000); // 10 minutes
   let cir;
 
   beforeAll(async () => {
     cir = await wasm_tester(
-      path.join(__dirname, "../circuits/issue_closed.circom"),
+      path.join(__dirname, "../circuits/pr_merged.circom"),
       {
         include: path.join(__dirname, "../node_modules"),
         output: path.join(__dirname, "../build"),
@@ -24,7 +24,7 @@ describe("Issue closed", function () {
   })
 
   it("Should generate witness", async () => {
-    const input = JSON.parse(fs.readFileSync(`input/issue.json`, "utf-8"));
+    const input = JSON.parse(fs.readFileSync(`input/pr.json`, "utf-8"));
 
     const witness = await cir.calculateWitness(
       input,
@@ -32,7 +32,5 @@ describe("Issue closed", function () {
     );
 
     await cir.checkConstraints(witness);
-    // expect(Fr.eq(Fr.e(witness[0]), Fr.e(1))).toBe(true);
-    // expect(Fr.eq(Fr.e(witness[1]), Fr.e(1))).toBe(true);
   })
 })

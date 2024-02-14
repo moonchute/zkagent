@@ -15,8 +15,8 @@ template IssueClosed(max_header_bytes, max_body_bytes, n, k, pack_size) {
   
     var max_email_from_len = ceil(28, pack_size); // RFC 2821: requires length to be 254, but we can limit to 28 (notifications@github.com)
     var max_email_repo_len = ceil(70, pack_size); 
-    var max_issue_number_len = 8;
-    var max_pr_number_len = 8;
+    var max_issue_number_len = 4;
+    var max_pr_number_len = 4;
 
     signal input in_padded[max_header_bytes]; // prehashed email data, includes up to 512 + 64? bytes of padding pre SHA256, and padded with lots of 0s at end after the length
     signal input pubkey[k]; // rsa pubkey, verified with smart contract + DNSSEC proof. split up into k parts of n bits each.
@@ -32,7 +32,7 @@ template IssueClosed(max_header_bytes, max_body_bytes, n, k, pack_size) {
     // Length of the body after precomputed SHA
     signal input in_body_len_padded_bytes;
 
-    // signal output pubkey_hash;
+    signal output pubkey_hash;
 
     // DKIM VERIFICATION
     // component EV = EmailVerifier(max_header_bytes, max_body_bytes, n, k, 0);
@@ -73,8 +73,8 @@ template IssueClosed(max_header_bytes, max_body_bytes, n, k, pack_size) {
     // ISSUE REGEX
     var max_issue_number_packed_bytes = count_packed(max_issue_number_len, pack_size);
     var max_pr_number_packed_bytes = count_packed(max_pr_number_len, pack_size);
-    assert(max_issue_number_packed_bytes < max_header_bytes);
-    assert(max_pr_number_packed_bytes < max_header_bytes);
+    assert(max_issue_number_packed_bytes < max_body_bytes);
+    assert(max_pr_number_packed_bytes < max_body_bytes);
 
     signal input issue_number_idx;
     signal input issue_pr_idx;

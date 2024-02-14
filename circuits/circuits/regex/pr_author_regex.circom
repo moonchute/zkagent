@@ -3,7 +3,7 @@ pragma circom 2.1.5;
 include "@zk-email/zk-regex-circom/circuits/regex_helpers.circom";
 
 // regex: \ncc:[A-Za-z0-9_-]+ <[A-Za-z0-9@._-]+>, Author <author@noreply.github.com>
-template PrAuthorRegex(msg_bytes) {
+template PRAuthorRegex(msg_bytes) {
 	signal input msg[msg_bytes];
 	signal output out;
 
