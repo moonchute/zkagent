@@ -24,7 +24,7 @@ describe("Issue closed", function () {
   })
 
   it("Should generate witness", async () => {
-    const input = JSON.parse(fs.readFileSync(`input/issue.json`, "utf-8"));
+    const input = JSON.parse(fs.readFileSync(`./inputs/issue_closed.json`, "utf-8"));
 
     const witness = await cir.calculateWitness(
       input,

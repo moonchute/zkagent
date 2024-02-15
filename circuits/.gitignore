@@ -1,5 +1,13 @@
 /emls/**
 
-/input/
+/inputs/
 
 /build/
+
+entropy.env
+
+circuit.env
+
+/ptau/**
+
+/contracts/**

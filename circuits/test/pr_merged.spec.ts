@@ -24,7 +24,7 @@ describe("PR merged", function () {
   })
 
   it("Should generate witness", async () => {
-    const input = JSON.parse(fs.readFileSync(`input/pr.json`, "utf-8"));
+    const input = JSON.parse(fs.readFileSync(`inputs/pr_merged.json`, "utf-8"));
 
     const witness = await cir.calculateWitness(
       input,

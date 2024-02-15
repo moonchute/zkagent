@@ -5,20 +5,17 @@ import { shaHash, partialSha, sha256Pad } from "@zk-email/helpers/dist/shaHash";
 import {
   bytesToBigInt,
   stringToBytes,
-  fromHex,
   toCircomBigIntBytes,
-  packBytesIntoNBytes,
-  bufferToUint8Array,
   bufferToString,
-  bufferToHex,
   Uint8ArrayToString,
   Uint8ArrayToCharArray,
   assert,
   mergeUInt8Arrays,
   int8toBytes,
-  int64toBytes,
 } from "@zk-email/helpers/dist/binaryFormat";
 import { pki } from "node-forge";
+
+type IType = "issue_closed" | "pr_merged";
 
 interface ICircuitInputs {
   // Email verifiers
@@ -34,43 +31,14 @@ interface ICircuitInputs {
   // base_message?: string[];
   // in_padded_n_bytes?: string[];
   // expected_sha?: string[];
-  // venmo_payer_id_idx?: string;
   email_from_idx?: string | number;
   email_repo_idx?: string | number;
   issue_number_idx?: string | number;
   issue_pr_idx?: string | number;
-  // email_to_idx?: string | number;
-  // email_timestamp_idx?: string;
-  // venmo_payee_id_idx?: string;
-  // venmo_amount_idx?: string;
-  // venmo_actor_id_idx?: string;
-  // hdfc_payee_id_idx?: string;
-  // hdfc_amount_idx?: string;
-  // hdfc_payment_id_idx?: string;
-  // hdfc_acc_num_idx?: string;
-  // paylah_amount_idx?: string;
-  // paylah_payer_mobile_num_idx?: string;
-  // paylah_payee_name_idx?: string;
-  // paylah_payee_mobile_num_idx?: string;
-  // paylah_payment_id_idx?: string;
-  // garanti_payer_mobile_num_idx?: string;
-  // garanti_payee_acc_num_idx?: string;
-  // garanti_amount_idx?: string;
-  // email_date_idx?: string;
-  // intermediate_hash?: string[];
+  pr_author_idx?: string | number;
+  pr_number_idx?: string | number;
   // in_body_suffix_padded?: string[];
   // in_body_suffix_len_padded_bytes?: string;
-  // intent_hash?: string;
-  // // subject commands only
-  // command_idx?: string;
-  // message_id_idx?: string;
-  // amount_idx?: string;
-  // currency_idx?: string;
-  // recipient_idx?: string;
-  // custom_message_id_from?: string[];
-  // custom_message_id_recipient?: string[];
-  // nullifier?: string;
-  // relayer?: string;
 }
 
 function padWithZero(arr: Uint8Array, length: number) {
@@ -104,18 +72,28 @@ function trimStrByStr(str: string, substr: string) {
   return str.slice(index + substr.length, str.length);
 }
 
-async function getArgs() {
+async function getArgs(): Promise<{ emailFile: string, outputDir: string, type: IType }>{
   const args = process.argv.slice(2);
   const emailFileArg = args.find((arg) => arg.startsWith("--email="));
   const outputDirArg = args.find((arg) => arg.startsWith("--output="));
+  const typeArg = args.find((arg) => arg.startsWith("--type="));
   
   if (!emailFileArg) {
-    console.log("Usage npx ts-node generateInput.ts --email=<email_file> --output=<output_dir>");
+    console.log("Usage npx ts-node generateInput.ts --email=<email_file> --output=<output_dir> --type=<type>");
+    process.exit(1);
+  }
+  if (!typeArg) {
+    console.log("Usage npx ts-node generateInput.ts --email=<email_file> --output=<output_dir> --type=<type>");
     process.exit(1);
   }
   const emailFile = emailFileArg.split("=")[1];
   const outputDir = outputDirArg ? outputDirArg.split("=")[1] : "./output";
-  return { emailFile, outputDir };
+  const type = typeArg.split("=")[1];
+  if (type !== "issue_closed" && type !== "pr_merged") {
+    console.log("Invalid type. Must be either 'issue' or 'pr'");
+    process.exit(1);
+  }
+  return { emailFile, outputDir, type };
 }
 
 export async function getCircuitInputs(
@@ -123,7 +101,8 @@ export async function getCircuitInputs(
   rsaPublicKey: BigInt,
   message: Buffer,
   body: Buffer,
-  bodyHash: string
+  bodyHash: string,
+  type: IType
 ): Promise<ICircuitInputs> {
   console.log("Starting processing of inputs");
   let MAX_HEADER_PADDED_BYTES_FOR_EMAIL_TYPE = 1536;
@@ -149,12 +128,11 @@ export async function getCircuitInputs(
   // Precompute SHA prefix
   const selector = STRING_PRESELECTOR_FOR_EMAIL_TYPE.split("").map((char) => char.charCodeAt(0));
   const selector_loc = await findSelector(bodyPadded, selector);
-  console.log("Body selector found at: ", selector_loc);
+
   let shaCutoffIndex = Math.floor((await findSelector(bodyPadded, selector)) / 64) * 64;
   const precomputeText = bodyPadded.slice(0, shaCutoffIndex);
   let bodyRemaining = bodyPadded.slice(shaCutoffIndex);
   const bodyRemainingLen = bodyPaddedLen - precomputeText.length;
-  console.log(bodyRemainingLen, " bytes remaining in body");
   
   assert(bodyRemainingLen < MAX_BODY_PADDED_BYTES_FOR_EMAIL_TYPE, "Invalid body length");
   assert(bodyRemaining.length % 64 === 0, "Not going to be padded correctly with int64s");
@@ -175,42 +153,68 @@ export async function getCircuitInputs(
   const in_body_len_padded_bytes = bodyRemainingLen.toString();
   const in_body_padded = Uint8ArrayToCharArray(bodyRemaining);
   const base_message = toCircomBigIntBytes(postShaBigintUnpadded);
-  console.log("in_body_padded", body.length);
 
   let raw_header = Buffer.from(message).toString();
-  console.log("raw_header", raw_header);
   const email_from_idx = raw_header.length - trimStrByStr(trimStrByStr(raw_header, "from:"), "<").length;
   let email_subject = trimStrByStr(raw_header, "\r\nsubject:");
 
-  const issueSelector = "Closed #";
-  const issue_number_idx = (Buffer.from(bodyRemaining).indexOf(issueSelector) + issueSelector.length).toString();
-  const issuePRSelector = "as completed via #";
-  const issue_pr_idx = (Buffer.from(bodyRemaining).indexOf(issuePRSelector) + issuePRSelector.length).toString();
   const email_repo_idx = raw_header.length - trimStrByStr(raw_header, "\nto:").length;
 
   console.log("email from:", raw_header.slice(email_from_idx, email_from_idx + 20));
-  console.log("issue:", new TextDecoder().decode(bodyRemaining.slice(Number(issue_number_idx), Number(issue_number_idx) + 2)));
-  console.log("issue pr:", new TextDecoder().decode(bodyRemaining.slice(Number(issue_pr_idx), Number(issue_pr_idx) + 2)));
   console.log("issueRepoIdx:", raw_header.slice(email_repo_idx, email_repo_idx + 24));
 
-  circuitInputs = {
-    in_padded,
-    pubkey,
-    signature,
-    in_len_padded_bytes,
-    body_hash_idx,
-    precomputed_sha,
-    in_body_padded,
-    in_body_len_padded_bytes,
-    email_from_idx: email_from_idx.toString(),
-    email_repo_idx: email_repo_idx.toString(),
-    issue_number_idx: issue_number_idx.toString(),
-    issue_pr_idx: issue_pr_idx.toString(),
+  if (type === "issue_closed") {
+    const issueSelector = "Closed #";
+    const issue_number_idx = (Buffer.from(bodyRemaining).indexOf(issueSelector) + issueSelector.length).toString();
+    const issuePRSelector = "as completed via #";
+    const issue_pr_idx = (Buffer.from(bodyRemaining).indexOf(issuePRSelector) + issuePRSelector.length).toString();
+    console.log("issue:", new TextDecoder().decode(bodyRemaining.slice(Number(issue_number_idx), Number(issue_number_idx) + 2)));
+    console.log("issue pr:", new TextDecoder().decode(bodyRemaining.slice(Number(issue_pr_idx), Number(issue_pr_idx) + 2)));
+  
+    circuitInputs = {
+      in_padded,
+      pubkey,
+      signature,
+      in_len_padded_bytes,
+      body_hash_idx,
+      precomputed_sha,
+      in_body_padded,
+      in_body_len_padded_bytes,
+      email_from_idx: email_from_idx.toString(),
+      email_repo_idx: email_repo_idx.toString(),
+      issue_number_idx: issue_number_idx.toString(),
+      issue_pr_idx: issue_pr_idx.toString(),
+    }
+  } else if (type === "pr_merged") {
+    const pr_author_idx = raw_header.length - trimStrByStr(trimStrByStr(raw_header, "\ncc:"), "<").length;
+    const prSelector = "Merged #";
+    const pr_number_idx = (Buffer.from(bodyRemaining).indexOf(prSelector) + prSelector.length).toString();
+
+    console.log("pr author:", raw_header.slice(pr_author_idx, pr_author_idx + 19));
+    console.log("pr number:", new TextDecoder().decode(bodyRemaining.slice(Number(pr_number_idx), Number(pr_number_idx) + 2)));
+  
+    circuitInputs = {
+      in_padded,
+      pubkey,
+      signature,
+      in_len_padded_bytes,
+      body_hash_idx,
+      precomputed_sha,
+      in_body_padded,
+      in_body_len_padded_bytes,
+      email_from_idx: email_from_idx.toString(),
+      email_repo_idx: email_repo_idx.toString(),
+      pr_author_idx: pr_author_idx.toString(),
+      pr_number_idx: pr_number_idx.toString(),
+    }
+  } else {
+    throw new Error("Invalid type");
   }
+
   return circuitInputs;
 }
 
-export async function generateInputs(raw_email: Buffer): Promise<ICircuitInputs> {
+export async function generateInputs(raw_email: Buffer, type: IType): Promise<ICircuitInputs> {
   const result = await dkimVerify(raw_email);
   console.log("Results:", result.results[0]);
   if (!result.results[0]) {
@@ -230,7 +234,7 @@ export async function generateInputs(raw_email: Buffer): Promise<ICircuitInputs>
   const pubKeyPem = result.results[0].publicKey;
   const pubKeyData = pki.publicKeyFromPem(pubKeyPem);
   const pubKey = BigInt(pubKeyData.n.toString());
-  const finalCircuits = await getCircuitInputs(sig, pubKey, message, body, bodyHash); 
+  const finalCircuits = await getCircuitInputs(sig, pubKey, message, body, bodyHash, type); 
   
   return finalCircuits;
 }
@@ -238,9 +242,9 @@ export async function generateInputs(raw_email: Buffer): Promise<ICircuitInputs>
 async function generateFromCmd(writeToFile: boolean = true) {
   const args = await getArgs();
   const email = fs.readFileSync(args.emailFile.trim());
-  const inputs = await generateInputs(email);
+  const inputs = await generateInputs(email, args.type);
   if (writeToFile) {
-    fs.writeFileSync(`${args.outputDir}/input.json`, JSON.stringify(inputs), { flag: "w"});
+    fs.writeFileSync(`${args.outputDir}/${args.type}.json`, JSON.stringify(inputs), { flag: "w"});
   }
 }
 
