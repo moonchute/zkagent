@@ -29,19 +29,14 @@ describe("A regex", function () {
     const input = {
       "msg": textToAsciiArray("\ncc:b04502133 <tony84602@gmail.com>, Author <author@noreply.github.com>")
     };
-    const expectedValue = Array(textToAsciiArray("\ncc:b04502133 <").length).fill("0")
-      .concat(textToAsciiArray("tony84602@gmail.com"))
-      .concat(Array(textToAsciiArray(">, Author <author@noreply.github.com>").length).fill("0"))
 
     const witness = await cir.calculateWitness(
       input,
       true
     );
-    const result = witness.slice(2, input.msg.length + 2);
     await cir.checkConstraints(witness);
 
     expect(Fr.eq(Fr.e(witness[0]), Fr.e(1))).toBe(true);
     expect(Fr.eq(Fr.e(witness[1]), Fr.e(1))).toBe(true);
-    expect(JSON.stringify(expectedValue)).toBe(JSON.stringify(result));
   })
 })

@@ -14,9 +14,9 @@ template IssueClosed(max_header_bytes, max_body_bytes, n, k, pack_size) {
     assert(n * k > 1024); // constraints for 1024 bit RSA
   
     var max_email_from_len = ceil(28, pack_size); // RFC 2821: requires length to be 254, but we can limit to 28 (notifications@github.com)
-    var max_email_repo_len = ceil(70, pack_size); 
-    var max_issue_number_len = 4;
-    var max_pr_number_len = 4;
+    var max_repo_len = ceil(56, pack_size); 
+    var max_issue_number_len = 8;
+    var max_pr_number_len = 8;
 
     signal input in_padded[max_header_bytes]; // prehashed email data, includes up to 512 + 64? bytes of padding pre SHA256, and padded with lots of 0s at end after the length
     signal input pubkey[k]; // rsa pubkey, verified with smart contract + DNSSEC proof. split up into k parts of n bits each.
@@ -60,15 +60,15 @@ template IssueClosed(max_header_bytes, max_body_bytes, n, k, pack_size) {
     reveal_email_from_packed <== ShiftAndPackMaskedStr(max_header_bytes, max_email_from_len, pack_size)(from_regex_reveal, email_from_idx);
 
     // REPO REGEX
-    var max_email_repo_packed_bytes = count_packed(max_email_repo_len, pack_size);
-    assert(max_email_repo_packed_bytes < max_header_bytes);
+    var max_repo_packed_bytes = count_packed(max_repo_len, pack_size);
+    assert(max_repo_packed_bytes < max_header_bytes);
 
-    signal input email_repo_idx;
-    signal output reveal_email_repo_packed[max_email_repo_packed_bytes];
+    signal input repo_idx;
+    signal output reveal_repo_packed[max_repo_packed_bytes];
     
     signal (repo_regex_out, repo_regex_reveal[max_header_bytes]) <== RepoRegex(max_header_bytes)(in_padded);
     repo_regex_out === 1;
-    reveal_email_repo_packed <== ShiftAndPackMaskedStr(max_header_bytes, max_email_repo_len, pack_size)(repo_regex_reveal, email_repo_idx);
+    reveal_repo_packed <== ShiftAndPackMaskedStr(max_header_bytes, max_repo_len, pack_size)(repo_regex_reveal, repo_idx);
 
     // ISSUE REGEX
     var max_issue_number_packed_bytes = count_packed(max_issue_number_len, pack_size);

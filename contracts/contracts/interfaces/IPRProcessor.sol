@@ -7,7 +7,7 @@ interface IPRProcessor {
     uint256[2] a;
     uint256[2][2] b;
     uint256[2] c;
-    uint256[23] signals;
+    uint256[16] signals;
   }
 
   function processProof(PRProof calldata _proof) external view returns (string memory, uint256, address);

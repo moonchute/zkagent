@@ -1,17 +1,17 @@
 
 
-interface IssueProofA {
+interface IssueProof {
+  a: [bigint, bigint];
+  b: [[bigint, bigint], [bigint, bigint]];
+  c: [bigint, bigint];
+  signals: [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint];
+}
+
+interface PRProof {
   a: [bigint, bigint];
   b: [[bigint, bigint], [bigint, bigint]];
   c: [bigint, bigint];
   signals: [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint];
-}
-
-interface IssueProofB {
-  a: [bigint, bigint];
-  b: [[bigint, bigint], [bigint, bigint]];
-  c: [bigint, bigint];
-  signals: [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint];
 }
 
 export const convertIssueClosedProofFromStr = (
@@ -19,11 +19,11 @@ export const convertIssueClosedProofFromStr = (
   b: [[string, string], [string, string]],
   c: [string, string],
   signals: string[]
-): IssueProofA => {
-  const aBN = a.map((el) => BigInt(el)) as IssueProofA["a"];
-  const bBN = b.map((el) => el.map((el) => BigInt(el))) as IssueProofA["b"];
-  const cBN = c.map((el) => BigInt(el)) as IssueProofA["c"];
-  const signalsBN = signals.map((el) => BigInt(el)) as IssueProofA["signals"];
+): IssueProof => {
+  const aBN = a.map((el) => BigInt(el)) as IssueProof["a"];
+  const bBN = b.map((el) => el.map((el) => BigInt(el))) as IssueProof["b"];
+  const cBN = c.map((el) => BigInt(el)) as IssueProof["c"];
+  const signalsBN = signals.map((el) => BigInt(el)) as IssueProof["signals"];
 
   return {
     a: aBN,
@@ -38,11 +38,11 @@ export const convertPRClosedProofFromStr = (
   b: [[string, string], [string, string]],
   c: [string, string],
   signals: string[]
-): IssueProofB => {
-  const aBN = a.map((el) => BigInt(el)) as IssueProofB["a"];
-  const bBN = b.map((el) => el.map((el) => BigInt(el))) as IssueProofB["b"];
-  const cBN = c.map((el) => BigInt(el)) as IssueProofB["c"];
-  const signalsBN = signals.map((el) => BigInt(el)) as IssueProofB["signals"];
+): PRProof => {
+  const aBN = a.map((el) => BigInt(el)) as PRProof["a"];
+  const bBN = b.map((el) => el.map((el) => BigInt(el))) as PRProof["b"];
+  const cBN = c.map((el) => BigInt(el)) as PRProof["c"];
+  const signalsBN = signals.map((el) => BigInt(el)) as PRProof["signals"];
 
   return {
     a: aBN,

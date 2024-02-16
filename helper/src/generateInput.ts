@@ -32,11 +32,12 @@ interface ICircuitInputs {
   // in_padded_n_bytes?: string[];
   // expected_sha?: string[];
   email_from_idx?: string | number;
-  email_repo_idx?: string | number;
+  repo_idx?: string | number;
   issue_number_idx?: string | number;
   issue_pr_idx?: string | number;
-  pr_author_idx?: string | number;
+  // pr_author_idx?: string | number;
   pr_number_idx?: string | number;
+  to_address?: string;
   // in_body_suffix_padded?: string[];
   // in_body_suffix_len_padded_bytes?: string;
 }
@@ -72,11 +73,12 @@ function trimStrByStr(str: string, substr: string) {
   return str.slice(index + substr.length, str.length);
 }
 
-async function getArgs(): Promise<{ emailFile: string, outputDir: string, type: IType }>{
+async function getArgs(): Promise<{ emailFile: string, outputDir: string, type: IType, toAddress?: string }>{
   const args = process.argv.slice(2);
   const emailFileArg = args.find((arg) => arg.startsWith("--email="));
   const outputDirArg = args.find((arg) => arg.startsWith("--output="));
   const typeArg = args.find((arg) => arg.startsWith("--type="));
+  const toAddressArg = args.find((arg) => arg.startsWith("--to="));
   
   if (!emailFileArg) {
     console.log("Usage npx ts-node generateInput.ts --email=<email_file> --output=<output_dir> --type=<type>");
@@ -89,11 +91,17 @@ async function getArgs(): Promise<{ emailFile: string, outputDir: string, type: 
   const emailFile = emailFileArg.split("=")[1];
   const outputDir = outputDirArg ? outputDirArg.split("=")[1] : "./output";
   const type = typeArg.split("=")[1];
+  const toAddress = toAddressArg?.split("=")[1];
+
   if (type !== "issue_closed" && type !== "pr_merged") {
     console.log("Invalid type. Must be either 'issue' or 'pr'");
     process.exit(1);
   }
-  return { emailFile, outputDir, type };
+  if (type === "pr_merged" && !toAddressArg) {
+    console.log("Must provide --to=<to_address> for pr_merged type");
+    process.exit(1);
+  }
+  return { emailFile, outputDir, type, toAddress };
 }
 
 export async function getCircuitInputs(
@@ -102,7 +110,8 @@ export async function getCircuitInputs(
   message: Buffer,
   body: Buffer,
   bodyHash: string,
-  type: IType
+  type: IType,
+  toAddress?: string
 ): Promise<ICircuitInputs> {
   console.log("Starting processing of inputs");
   let MAX_HEADER_PADDED_BYTES_FOR_EMAIL_TYPE = 1536;
@@ -158,10 +167,10 @@ export async function getCircuitInputs(
   const email_from_idx = raw_header.length - trimStrByStr(trimStrByStr(raw_header, "from:"), "<").length;
   let email_subject = trimStrByStr(raw_header, "\r\nsubject:");
 
-  const email_repo_idx = raw_header.length - trimStrByStr(raw_header, "\nto:").length;
+  const repo_idx = raw_header.length - trimStrByStr(raw_header, "\nto:").length;
 
   console.log("email from:", raw_header.slice(email_from_idx, email_from_idx + 20));
-  console.log("issueRepoIdx:", raw_header.slice(email_repo_idx, email_repo_idx + 24));
+  console.log("issueRepoIdx:", raw_header.slice(repo_idx, repo_idx + 24));
 
   if (type === "issue_closed") {
     const issueSelector = "Closed #";
@@ -181,16 +190,16 @@ export async function getCircuitInputs(
       in_body_padded,
       in_body_len_padded_bytes,
       email_from_idx: email_from_idx.toString(),
-      email_repo_idx: email_repo_idx.toString(),
+      repo_idx: repo_idx.toString(),
       issue_number_idx: issue_number_idx.toString(),
       issue_pr_idx: issue_pr_idx.toString(),
     }
   } else if (type === "pr_merged") {
-    const pr_author_idx = raw_header.length - trimStrByStr(trimStrByStr(raw_header, "\ncc:"), "<").length;
+    // const pr_author_idx = raw_header.length - trimStrByStr(trimStrByStr(raw_header, "\ncc:"), "<").length;
     const prSelector = "Merged #";
     const pr_number_idx = (Buffer.from(bodyRemaining).indexOf(prSelector) + prSelector.length).toString();
 
-    console.log("pr author:", raw_header.slice(pr_author_idx, pr_author_idx + 19));
+    // console.log("pr author:", raw_header.slice(pr_author_idx, pr_author_idx + 19));
     console.log("pr number:", new TextDecoder().decode(bodyRemaining.slice(Number(pr_number_idx), Number(pr_number_idx) + 2)));
   
     circuitInputs = {
@@ -203,9 +212,10 @@ export async function getCircuitInputs(
       in_body_padded,
       in_body_len_padded_bytes,
       email_from_idx: email_from_idx.toString(),
-      email_repo_idx: email_repo_idx.toString(),
-      pr_author_idx: pr_author_idx.toString(),
+      repo_idx: repo_idx.toString(),
+      // pr_author_idx: pr_author_idx.toString(),
       pr_number_idx: pr_number_idx.toString(),
+      to_address: toAddress
     }
   } else {
     throw new Error("Invalid type");
@@ -214,7 +224,7 @@ export async function getCircuitInputs(
   return circuitInputs;
 }
 
-export async function generateInputs(raw_email: Buffer, type: IType): Promise<ICircuitInputs> {
+export async function generateInputs(raw_email: Buffer, type: IType, toAddress?: string): Promise<ICircuitInputs> {
   const result = await dkimVerify(raw_email);
   console.log("Results:", result.results[0]);
   if (!result.results[0]) {
@@ -234,7 +244,7 @@ export async function generateInputs(raw_email: Buffer, type: IType): Promise<IC
   const pubKeyPem = result.results[0].publicKey;
   const pubKeyData = pki.publicKeyFromPem(pubKeyPem);
   const pubKey = BigInt(pubKeyData.n.toString());
-  const finalCircuits = await getCircuitInputs(sig, pubKey, message, body, bodyHash, type); 
+  const finalCircuits = await getCircuitInputs(sig, pubKey, message, body, bodyHash, type, toAddress); 
   
   return finalCircuits;
 }
@@ -242,7 +252,7 @@ export async function generateInputs(raw_email: Buffer, type: IType): Promise<IC
 async function generateFromCmd(writeToFile: boolean = true) {
   const args = await getArgs();
   const email = fs.readFileSync(args.emailFile.trim());
-  const inputs = await generateInputs(email, args.type);
+  const inputs = await generateInputs(email, args.type, args.toAddress);
   if (writeToFile) {
     fs.writeFileSync(`${args.outputDir}/${args.type}.json`, JSON.stringify(inputs), { flag: "w"});
   }

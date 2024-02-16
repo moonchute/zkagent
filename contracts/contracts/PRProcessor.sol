@@ -7,8 +7,6 @@ import { BaseProcessorV2 } from "./processors/BaseProcessorV2.sol";
 import { Groth16Verifier } from "./verifiers/pr_merged_verifier.sol";
 import { IKeyHashAdapterV2 } from "./processors/keyHashAdapters/IKeyHashAdapterV2.sol";
 import { IPRProcessor } from "./interfaces/IPRProcessor.sol";
-// import { StringUtils } from "./external/StringUtils.sol";
-
 import "hardhat/console.sol";
 
 contract PRProcessor is Groth16Verifier, IPRProcessor, BaseProcessorV2 {
@@ -43,19 +41,16 @@ contract PRProcessor is Groth16Verifier, IPRProcessor, BaseProcessorV2 {
 
         // require(isMailServerKeyHash(bytes32(_proof.signals[0])), "Invalid mailserver key hash");
         
-        string memory fromEmail = _parseSignalArray(_proof.signals, 0, 4);
+        string memory fromEmail = _parseSignalArray(_proof.signals, 1, 5);
         require(keccak256(abi.encodePacked(fromEmail)) == keccak256(emailFromAddress), "Invalid email from address");
 
-        repo = _parseSignalArray(_proof.signals, 4, 14);
-
-        // toAddress = address(0);
-        string memory author = _parseSignalArray(_proof.signals, 14, 22);
-        console.log("author:", author);
-        prNum = _parseSignalArray(_proof.signals, 22, 23).stringToUint();
+        repo = _parseSignalArray(_proof.signals, 5, 13);
+        prNum = _parseSignalArray(_proof.signals, 13, 15).stringToUint();
+        toAddress = address(uint160(_proof.signals[15]));
     }
 
     /* ============ Internal Functions ============ */
-    function _parseSignalArray(uint256[23] calldata _signals, uint8 _from, uint8 _to) internal pure returns (string memory) {
+    function _parseSignalArray(uint256[16] calldata _signals, uint8 _from, uint8 _to) internal pure returns (string memory) {
         uint256[] memory signalArray = new uint256[](_to - _from);
         for (uint256 i = _from; i < _to; i++) {
             signalArray[i - _from] = _signals[i];
